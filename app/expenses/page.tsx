@@ -181,6 +181,7 @@ export default function ExpensesListPage() {
                 <th className="p-4">類別</th>
                 <th className="p-4">商戶名稱</th>
                 <th className="p-4">金額 (HKD)</th>
+                <th className="p-4">申請備註</th>
                 <th className="p-4">收據</th>
                 <th className="p-4">審批狀態</th>
                 <th className="p-4">批准人</th>
@@ -201,6 +202,13 @@ export default function ExpensesListPage() {
                     </td>
                     <td className="p-4 font-medium text-gray-900">{item.merchant}</td>
                     <td className="p-4 font-bold text-gray-900">${item.amount.toFixed(2)}</td>
+                    <td className="p-4 text-xs text-gray-600 max-w-[180px] truncate" title={item.notes || ''}>
+                      {item.notes ? (
+                        <span>{item.notes}</span>
+                      ) : (
+                        <span className="text-gray-400 font-normal">無</span>
+                      )}
+                    </td>
                     <td className="p-4">
                       {item.receipt_url ? (
                         <a href={item.receipt_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs bg-blue-50 px-3 py-1 rounded-lg">
@@ -217,7 +225,6 @@ export default function ExpensesListPage() {
                         {item.status === 'pending' ? '審核中' : item.status === 'approved' ? '已批准' : '已駁回'}
                       </span>
                     </td>
-                    {/* 顯示批准人資訊 */}
                     <td className="p-4 text-xs font-medium text-gray-600">
                       {item.approver_id ? (
                         <span className="text-gray-800 font-semibold">{approver.full_name || approver.email || '系統管理員'}</span>

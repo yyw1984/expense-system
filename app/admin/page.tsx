@@ -43,7 +43,7 @@ export default function AdminApprovalPage() {
     setCurrentUserProfile(profile)
 
     // 取得所有 profiles
-    const { data: profilesData } = await supabase.from('profiles').select('*')
+    const { data: profilesData } = await supabase.from('profiles'].select('*')
     if (profilesData) {
       setAllProfiles(profilesData)
       const map: { [key: string]: any } = {}
@@ -63,13 +63,28 @@ export default function AdminApprovalPage() {
 
     const { data, error } = await query
     if (!error && data) {
-      // 💡 計算每筆單據是否為重複申請（依據相同 merchant 與 amount）
+      // 💡 雙重重複檢測邏輯：
+      // 條件 A：日期相同 且 商戶名稱相同
+      // 條件 B：日期相同 且 金額相同
       const expensesWithDuplicateCheck = data.map(item => {
-        const isDuplicate = data.some(other => 
-          other.id !== item.id && 
-          other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase() &&
-          other.amount === item.amount
-        )
+        const isDuplicate = data.some(other => {
+          if (other.id === item.id) return false
+
+          const sameDate = other.date === item.date
+          
+          // 邏輯 1：日期相同 + 商戶名稱相同 (忽略大小寫與前後空白)
+          const sameMerchant = 
+            other.merchant && item.merchant &&
+            other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase()
+          const matchMerchantRule = sameDate && sameMerchant
+
+          // 邏輯 2：日期相同 + 金額相同
+          const sameAmount = other.amount === item.amount
+          const matchAmountRule = sameDate && sameAmount
+
+          return matchMerchantRule || matchAmountRule
+        })
+
         return { ...item, isDuplicate }
       })
 
@@ -196,7 +211,7 @@ export default function AdminApprovalPage() {
 
                 return (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="p-4 text-gray-600">{item.date}</td>
+                    <td className="p-4 text-gray-600 font-medium">{item.date}</td>
                     <td className="p-4 font-bold text-gray-900">{emp.full_name || emp.email || '未知'}</td>
                     <td className="p-4">{item.category}</td>
                     <td className="p-4">
@@ -211,7 +226,7 @@ export default function AdminApprovalPage() {
                             🤖 AI 自動辨識
                           </span>
                         )}
-                        {/* 💡 重複單據警示標籤 */}
+                        {/* 💡 雙重條件重複單據警示標籤 */}
                         {item.isDuplicate && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
                             ⚠️ 疑似重複申報

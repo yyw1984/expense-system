@@ -13,8 +13,8 @@ export default function AccountingPage() {
   // 篩選條件 States
   const [selectedEmployee, setSelectedEmployee] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
-  const [selectedMonth, setSelectedMonth] = useState('all') // 新增：依收據月份篩選 (格式: YYYY-MM)
-  const [selectedStatus, setSelectedStatus] = useState('all') // 新增：依審批狀態篩選
+  const [selectedMonth, setSelectedMonth] = useState('all')
+  const [selectedStatus, setSelectedStatus] = useState('all')
   
   const router = useRouter()
 
@@ -51,8 +51,33 @@ export default function AccountingPage() {
 
       if (error) {
         console.error('讀取失敗:', error.message)
-      } else {
-        setExpenses(expensesData || [])
+      } else if (expensesData) {
+        // 💡 雙重重複檢測邏輯：
+        // 條件 A：日期相同 且 商戶名稱相同
+        // 條件 B：日期相同 且 金額相同
+        const expensesWithDuplicateCheck = expensesData.map(item => {
+          const isDuplicate = expensesData.some(other => {
+            if (other.id === item.id) return false
+
+            const sameDate = other.date === item.date
+            
+            // 邏輯 1：日期相同 + 商戶名稱相同 (忽略大小寫與前後空白)
+            const sameMerchant = 
+              other.merchant && item.merchant &&
+              other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase()
+            const matchMerchantRule = sameDate && sameMerchant
+
+            // 邏輯 2：日期相同 + 金額相同
+            const sameAmount = other.amount === item.amount
+            const matchAmountRule = sameDate && sameAmount
+
+            return matchMerchantRule || matchAmountRule
+          })
+
+          return { ...item, isDuplicate }
+        })
+
+        setExpenses(expensesWithDuplicateCheck)
       }
       setLoading(false)
     }
@@ -78,22 +103,21 @@ export default function AccountingPage() {
     return matchEmployee && matchCategory && matchMonth && matchStatus
   })
 
-  // 匯出 CSV 函式（同步將辨識狀態與月份篩選納入考量）
+  // 匯出 CSV 函式
   const exportToCSV = () => {
     if (filteredExpenses.length === 0) {
       alert('目前沒有符合條件的資料可供匯出')
       return
     }
 
-    // CSV 欄位標題
-    const headers = ['收據日期', '員工姓名', '部門', '類別', '商戶名稱', '金額 (HKD)', '填寫方式', '審批狀態', '批准人']
+    const headers = ['收據日期', '員工姓名', '部門', '類別', '商戶名稱', '金額 (HKD)', '填寫方式', '審批狀態', '批准人', '是否疑似重複']
     
-    // 組裝資料列
     const rows = filteredExpenses.map(item => {
       const emp = profilesMap[item.user_id] || {}
       const approver = profilesMap[item.approver_id] || {}
       const statusText = item.status === 'approved' ? '已批准' : item.status === 'rejected' ? '已駁回' : '審核中'
       const editTypeText = item.is_manually_edited ? '人工覆核' : 'AI 自動辨識'
+      const duplicateText = item.isDuplicate ? '是' : '否'
       
       return [
         item.date,
@@ -104,11 +128,11 @@ export default function AccountingPage() {
         item.amount.toFixed(2),
         `"${editTypeText}"`,
         `"${statusText}"`,
-        `"${approver.full_name || approver.email || '未審核'}"`
+        `"${approver.full_name || approver.email || '未審核'}"`,
+        `"${duplicateText}"`
       ].join(',')
     })
 
-    // 加入 UTF-8 BOM (\uFEFF) 讓 Excel 順利讀取中文
     const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -141,7 +165,7 @@ export default function AccountingPage() {
         </div>
       </div>
 
-      {/* 篩選工具列 (改為 4 欄適應新增的篩選器) */}
+      {/* 篩選工具列 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200/60">
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">依員工篩選</label>
@@ -174,7 +198,6 @@ export default function AccountingPage() {
           </select>
         </div>
 
-        {/* 新增：收據月份篩選 */}
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">依收據月份篩選</label>
           <select 
@@ -189,7 +212,6 @@ export default function AccountingPage() {
           </select>
         </div>
 
-        {/* 新增：審批狀態篩選 */}
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">依審批狀態篩選</label>
           <select 
@@ -250,7 +272,7 @@ export default function AccountingPage() {
                     </td>
                     <td className="p-4">
                       <div className="font-medium text-gray-900">{item.merchant}</div>
-                      <div className="mt-1">
+                      <div className="mt-1 flex flex-wrap gap-1 items-center">
                         {item.is_manually_edited ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
                             ✏️ 人工覆核
@@ -258,6 +280,12 @@ export default function AccountingPage() {
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800">
                             🤖 AI 自動辨識
+                          </span>
+                        )}
+                        {/* 💡 會計總覽頁面同步加入雙重重複檢測提示 */}
+                        {item.isDuplicate && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
+                            ⚠️ 疑似重複申報
                           </span>
                         )}
                       </div>

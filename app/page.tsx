@@ -178,6 +178,7 @@ export default function NewExpensePage() {
         category,
         merchant,
         amount: parseFloat(amount) || 0,
+        notes, // 寫入申請備註
         receipt_url: receiptUrl,
         status: 'pending',
         is_manually_edited: hasEdited
@@ -310,6 +311,16 @@ export default function NewExpensePage() {
               required 
             />
           </div>
+        </div>
+
+        <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                申請備註 / 原因
+              </label>
+                <textarea
+                  value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="請輸入此筆報銷的用途或說明（例如：與客戶公務餐敘、出差交通費）" rows={3}
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
         </div>
 
         <div className="flex gap-4 pt-4">

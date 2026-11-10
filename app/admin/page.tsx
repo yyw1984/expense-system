@@ -43,7 +43,7 @@ export default function AdminApprovalPage() {
     setCurrentUserProfile(profile)
 
     // 取得所有 profiles
-    const { data: profilesData } = await supabase.from('profiles'].select('*')
+    const { data: profilesData } = await supabase.from('profiles').select('*')
     if (profilesData) {
       setAllProfiles(profilesData)
       const map: { [key: string]: any } = {}

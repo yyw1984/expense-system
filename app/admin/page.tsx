@@ -63,7 +63,17 @@ export default function AdminApprovalPage() {
 
     const { data, error } = await query
     if (!error && data) {
-      setExpenses(data)
+      // 💡 計算每筆單據是否為重複申請（依據相同 merchant 與 amount）
+      const expensesWithDuplicateCheck = data.map(item => {
+        const isDuplicate = data.some(other => 
+          other.id !== item.id && 
+          other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase() &&
+          other.amount === item.amount
+        )
+        return { ...item, isDuplicate }
+      })
+
+      setExpenses(expensesWithDuplicateCheck)
     }
     setLoading(false)
   }
@@ -102,7 +112,7 @@ export default function AdminApprovalPage() {
     : allProfiles
 
   return (
-    <main className="max-w-6xl mx-auto p-8 bg-white rounded-2xl shadow-lg mt-10 border border-gray-100">
+    <main className="max-w-7xl mx-auto p-8 bg-white rounded-2xl shadow-lg mt-10 border border-gray-100">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-gray-100">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">審批儀表板</h1>
@@ -172,6 +182,7 @@ export default function AdminApprovalPage() {
                 <th className="p-4">類別</th>
                 <th className="p-4">商戶與辨識狀態</th>
                 <th className="p-4">金額</th>
+                <th className="p-4">申請備註</th>
                 <th className="p-4">收據</th>
                 <th className="p-4">狀態</th>
                 <th className="p-4">操作 / 批准人</th>
@@ -190,7 +201,7 @@ export default function AdminApprovalPage() {
                     <td className="p-4">{item.category}</td>
                     <td className="p-4">
                       <div className="font-semibold text-gray-900">{item.merchant}</div>
-                      <div className="mt-1">
+                      <div className="mt-1 flex flex-wrap gap-1 items-center">
                         {item.is_manually_edited ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">
                             ✏️ 人工覆核
@@ -200,9 +211,18 @@ export default function AdminApprovalPage() {
                             🤖 AI 自動辨識
                           </span>
                         )}
+                        {/* 💡 重複單據警示標籤 */}
+                        {item.isDuplicate && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
+                            ⚠️ 疑似重複申報
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="p-4 font-bold">${item.amount.toFixed(2)}</td>
+                    <td className="p-4 text-xs text-gray-600 max-w-[160px] truncate" title={item.notes || ''}>
+                      {item.notes ? item.notes : <span className="text-gray-400">無</span>}
+                    </td>
                     <td className="p-4">
                       {item.receipt_url ? (
                         <a href={item.receipt_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs underline">

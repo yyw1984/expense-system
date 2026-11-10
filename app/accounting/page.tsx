@@ -103,14 +103,14 @@ export default function AccountingPage() {
     return matchEmployee && matchCategory && matchMonth && matchStatus
   })
 
-  // 匯出 CSV 函式
+  // 匯出 CSV 函式（包含申請備註與重複標記）
   const exportToCSV = () => {
     if (filteredExpenses.length === 0) {
       alert('目前沒有符合條件的資料可供匯出')
       return
     }
 
-    const headers = ['收據日期', '員工姓名', '部門', '類別', '商戶名稱', '金額 (HKD)', '填寫方式', '審批狀態', '批准人', '是否疑似重複']
+    const headers = ['收據日期', '員工姓名', '部門', '類別', '商戶名稱', '金額 (HKD)', '申請備註', '填寫方式', '審批狀態', '批准人', '是否疑似重複']
     
     const rows = filteredExpenses.map(item => {
       const emp = profilesMap[item.user_id] || {}
@@ -126,6 +126,7 @@ export default function AccountingPage() {
         `"${item.category}"`,
         `"${item.merchant}"`,
         item.amount.toFixed(2),
+        `"${item.notes || ''}"`,
         `"${editTypeText}"`,
         `"${statusText}"`,
         `"${approver.full_name || approver.email || '未審核'}"`,
@@ -251,6 +252,7 @@ export default function AccountingPage() {
                 <th className="p-4">類別</th>
                 <th className="p-4">商戶名稱與填寫狀態</th>
                 <th className="p-4">金額 (HKD)</th>
+                <th className="p-4">申請備註</th> {/* 👈 新增備註表頭 */}
                 <th className="p-4">收據證明</th>
                 <th className="p-4">審批狀態</th>
                 <th className="p-4">批准人</th>
@@ -282,7 +284,6 @@ export default function AccountingPage() {
                             🤖 AI 自動辨識
                           </span>
                         )}
-                        {/* 💡 會計總覽頁面同步加入雙重重複檢測提示 */}
                         {item.isDuplicate && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
                             ⚠️ 疑似重複申報
@@ -291,6 +292,10 @@ export default function AccountingPage() {
                       </div>
                     </td>
                     <td className="p-4 font-bold text-gray-900">${item.amount.toFixed(2)}</td>
+                    {/* 👈 新增備註欄位內容渲染 */}
+                    <td className="p-4 text-xs text-gray-600 max-w-[160px] truncate" title={item.notes || ''}>
+                      {item.notes ? item.notes : <span className="text-gray-400">無</span>}
+                    </td>
                     <td className="p-4">
                       {item.receipt_url ? (
                         <a href={item.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium text-xs bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">

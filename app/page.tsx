@@ -9,6 +9,7 @@ export default function NewExpensePage() {
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('') 
   const [category, setCategory] = useState('交通')
+  const [notes, setNotes] = useState('') // ✅ 已補上 State
   const [file, setFile] = useState<File | null>(null)
   
   // 登入者資訊 State
@@ -156,7 +157,8 @@ export default function NewExpensePage() {
       if (file) {
         const fileExt = file.name.split('.').pop()
         const fileName = `${user.id}_${Math.random()}.${fileExt}`
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase
+          .storage
           .from('receipts')
           .upload(fileName, file)
 
@@ -165,7 +167,8 @@ export default function NewExpensePage() {
           return
         }
 
-        const { data: publicUrlData } = supabase.storage
+        const { data: publicUrlData } = supabase
+          .storage
           .from('receipts')
           .getPublicUrl(fileName)
         
@@ -226,7 +229,7 @@ export default function NewExpensePage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         
-        {/* 上傳收據照片 (亮眼化設計) */}
+        {/* 上傳收據照片 */}
         <div className="bg-gray-50/60 p-5 rounded-2xl border border-dashed border-gray-300 hover:border-blue-500 transition-all">
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             📸 上傳收據照片 <span className="text-xs font-normal text-blue-600">(支援自動 OCR 智慧辨識)</span>
@@ -313,14 +316,18 @@ export default function NewExpensePage() {
           </div>
         </div>
 
+        {/* ✅ 已優化樣式與結構的申請備註欄位 */}
         <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                申請備註 / 原因
-              </label>
-                <textarea
-                  value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="請輸入此筆報銷的用途或說明（例如：與客戶公務餐敘、出差交通費）" rows={3}
-                  className="w-full rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
+            申請備註 / 原因
+          </label>
+          <textarea
+            value={notes} 
+            onChange={(e) => setNotes(e.target.value)} 
+            placeholder="請輸入此筆報銷的用途或說明（例如：與客戶公務餐敘、出差交通費）" 
+            rows={3}
+            className="w-full rounded-xl border border-gray-300 p-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all focus:outline-none"
+          />
         </div>
 
         <div className="flex gap-4 pt-4">

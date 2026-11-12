@@ -8,7 +8,7 @@ export default function NewExpensePage() {
   const [merchant, setMerchant] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('') 
-  const [category, setCategory] = useState('飲食') // ✅ 預設值改為列表第一項「飲食」
+  const [category, setCategory] = useState('飲食')
   const [notes, setNotes] = useState('')
   const [file, setFile] = useState<File | null>(null)
   
@@ -51,7 +51,7 @@ export default function NewExpensePage() {
     if (!selectedFile) return
 
     setOcrLoading(true)
-    setOcrMessage('🤖 AI 正在精準辨識收據內容...')
+    setOcrMessage('🤖 AI 正在精準辨識收據與外幣匯率...')
 
     try {
       const compressedFile = await new Promise<File>((resolve) => {
@@ -132,7 +132,15 @@ export default function NewExpensePage() {
       if (data.amount) setAmount(data.amount.toString())
       if (data.date) setDate(data.date)
 
-      setOcrMessage('✨ AI 辨識成功！欄位已自動填入')
+      // 💡 接收外幣資訊並自動組合至備註欄位
+      if (data.currency && data.currency.toUpperCase() !== 'HKD' && data.original_amount) {
+        const foreignInfo = `原始外幣：${data.currency.toUpperCase()} ${data.original_amount} (參考匯率: ${data.exchange_rate || 'N/A'})`
+        setNotes(prev => prev ? `${prev} | ${foreignInfo}` : foreignInfo)
+        setOcrMessage(`✨ 辨識成功！已自動將 ${data.currency} 換算為港幣`)
+      } else {
+        setOcrMessage('✨ AI 辨識成功！欄位已自動填入')
+      }
+
     } catch (err: any) {
       console.error(err)
       setOcrMessage('⚠️ AI 辨識發生錯誤，請手動填寫')
@@ -203,11 +211,10 @@ export default function NewExpensePage() {
   return (
     <main className="max-w-2xl mx-auto p-8 bg-white rounded-3xl shadow-xl shadow-gray-100 mt-10 border border-gray-100">
       
-      {/* 頂部導覽列與登入者身份顯示 */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-100">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">新增報銷申請</h1>
-          <p className="text-xs text-gray-500 mt-1">上傳收據照片將透過 AI 自動填寫欄位，或您可手動調整</p>
+          <p className="text-xs text-gray-500 mt-1">上傳收據照片將透過 AI 自動填寫欄位（支援多國外幣自動換算）</p>
         </div>
         
         {currentUserProfile && (
@@ -229,10 +236,9 @@ export default function NewExpensePage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         
-        {/* 上傳收據照片 */}
         <div className="bg-gray-50/60 p-5 rounded-2xl border border-dashed border-gray-300 hover:border-blue-500 transition-all">
           <label className="block text-sm font-semibold text-gray-800 mb-2">
-            📸 上傳收據照片 <span className="text-xs font-normal text-blue-600">(支援自動 OCR 智慧辨識)</span>
+            📸 上傳收據照片 <span className="text-xs font-normal text-blue-600">(支援 AI 智慧識別外幣與折算)</span>
           </label>
           <input 
             type="file" 
@@ -302,7 +308,7 @@ export default function NewExpensePage() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">金額 (HKD)</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">金額 (折算後 HKD)</label>
           <div className="relative">
             <span className="absolute left-3.5 top-3 text-sm text-gray-400 font-semibold">$</span>
             <input 
@@ -322,12 +328,12 @@ export default function NewExpensePage() {
 
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
-            申請備註 / 原因
+            申請備註 / 原因（外幣細節將自動填入此處）
           </label>
           <textarea
             value={notes} 
             onChange={(e) => setNotes(e.target.value)} 
-            placeholder="請輸入此筆報銷的用途或說明（例如：與客戶公務餐敘、出差交通費）" 
+            placeholder="請輸入此筆報銷的用途或說明..." 
             rows={3}
             className="w-full rounded-xl border border-gray-300 p-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all focus:outline-none"
           />

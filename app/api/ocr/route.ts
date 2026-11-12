@@ -33,7 +33,14 @@ export async function POST(req: Request) {
               }
             },
             {
-              text: '請分析這張收據圖片，並嚴格以純 JSON 格式回傳以下三個欄位：merchant (商戶名稱, string)、amount (總金額, 數字浮點數)、date (日期, 格式為 YYYY-MM-DD)。如果找不到請填 null。不要包含任何 Markdown 代碼塊或額外文字。'
+              text: `請分析這張收據圖片，並嚴格以純 JSON 格式回傳以下欄位：
+- merchant (商戶名稱, string 或 null)
+- amount (折算或最終的港幣 HKD 總金額, 數字浮點數)
+- date (日期, 格式為 YYYY-MM-DD 或 null)
+- currency (原始幣別代碼，例如 HKD, RMB, EUR, USD, JPY 等)
+- original_amount (收據上顯示的原始外幣或本幣金額, 數字浮點數)
+- exchange_rate (該幣別換算為港幣 HKD 的大約匯率，若本來就是港幣則填 1.0)
+請不要包含任何 Markdown 代碼塊（如 \`\`\`json）或額外文字。`
             }
           ]
         })

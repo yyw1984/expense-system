@@ -16,6 +16,10 @@ export default function AccountingPage() {
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   
+  // 💡 新增：多選勾選的記錄 ID 集合
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [updating, setUpdating] = useState(false)
+  
   const router = useRouter()
 
   useEffect(() => {
@@ -52,22 +56,17 @@ export default function AccountingPage() {
       if (error) {
         console.error('讀取失敗:', error.message)
       } else if (expensesData) {
-        // 💡 雙重重複檢測邏輯：
-        // 條件 A：日期相同 且 商戶名稱相同
-        // 條件 B：日期相同 且 金額相同
+        // 💡 雙重重複檢測邏輯
         const expensesWithDuplicateCheck = expensesData.map(item => {
           const isDuplicate = expensesData.some(other => {
             if (other.id === item.id) return false
 
             const sameDate = other.date === item.date
-            
-            // 邏輯 1：日期相同 + 商戶名稱相同 (忽略大小寫與前後空白)
             const sameMerchant = 
               other.merchant && item.merchant &&
               other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase()
             const matchMerchantRule = sameDate && sameMerchant
 
-            // 邏輯 2：日期相同 + 金額相同
             const sameAmount = other.amount === item.amount
             const matchAmountRule = sameDate && sameAmount
 
@@ -89,7 +88,7 @@ export default function AccountingPage() {
   const profilesMap: { [key: string]: any } = {}
   profiles.forEach(p => { profilesMap[p.id] = p })
 
-  // 取得所有出現過的月份清單（供月份下拉選單動態產生）
+  // 取得所有出現過的月份清單
   const availableMonths = Array.from(
     new Set(expenses.map(item => item.date ? item.date.slice(0, 7) : ''))
   ).filter(Boolean).sort().reverse()
@@ -103,7 +102,61 @@ export default function AccountingPage() {
     return matchEmployee && matchCategory && matchMonth && matchStatus
   })
 
-  // 匯出 CSV 函式（包含申請備註與重複標記）
+  // 💡 處理單一勾選 / 取消勾選
+  const handleSelectOne = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(item => item !== id))
+    } else {
+      setSelectedIds([...selectedIds, id])
+    }
+  }
+
+  // 💡 處理全選 / 取消全選（針對當前篩選結果）
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allFilteredIds = filteredExpenses.map(item => item.id)
+      setSelectedIds(allFilteredIds)
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  // 💡 批核所選項目為「已發出支票」
+  const handleBatchIssueCheck = async () => {
+    if (selectedIds.length === 0) return
+
+    const confirmMsg = `確定要將選取的 ${selectedIds.length} 筆報銷單狀態更新為「已發出支票」嗎？`
+    if (!confirm(confirmMsg)) return
+
+    setUpdating(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase
+        .from('expenses')
+        .update({ 
+          status: 'cheque_issued', // 儲存至資料庫的狀態值
+          approver_id: user?.id 
+        })
+        .in('id', selectedIds)
+
+      if (error) {
+        alert('更新失敗: ' + error.message)
+      } else {
+        alert('成功更新所選單據狀態為「已發出支票」！')
+        setSelectedIds([]) // 清空勾選
+        // 重新載入頁面資料
+        window.location.reload()
+      }
+    } catch (err: any) {
+      console.error(err)
+      alert('發生未預期錯誤')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  // 匯出 CSV 函式
   const exportToCSV = () => {
     if (filteredExpenses.length === 0) {
       alert('目前沒有符合條件的資料可供匯出')
@@ -115,7 +168,11 @@ export default function AccountingPage() {
     const rows = filteredExpenses.map(item => {
       const emp = profilesMap[item.user_id] || {}
       const approver = profilesMap[item.approver_id] || {}
-      const statusText = item.status === 'approved' ? '已批准' : item.status === 'rejected' ? '已駁回' : '審核中'
+      let statusText = '審核中'
+      if (item.status === 'approved') statusText = '已批准'
+      else if (item.status === 'rejected') statusText = '已駁回'
+      else if (item.status === 'cheque_issued') statusText = '已發出支票'
+
       const editTypeText = item.is_manually_edited ? '人工覆核' : 'AI 自動辨識'
       const duplicateText = item.isDuplicate ? '是' : '否'
       
@@ -223,15 +280,32 @@ export default function AccountingPage() {
             <option value="all">所有狀態 (全部)</option>
             <option value="pending">審核中</option>
             <option value="approved">已批准</option>
+            <option value="cheque_issued">已發出支票</option>
             <option value="rejected">已駁回</option>
           </select>
         </div>
       </div>
 
-      <div className="flex justify-between items-center mb-4 px-1">
+      {/* 💡 批核操作控制列 (當有勾選時顯示) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 px-1 gap-3">
         <div className="text-xs text-gray-500">
-          符合條件筆數：<span className="font-bold text-gray-800">{filteredExpenses.length}</span> 筆
+          符合條件筆數：<span className="font-bold text-gray-800">{filteredExpenses.length}</span> 筆 
+          {selectedIds.length > 0 && (
+            <span className="ml-3 text-blue-600 font-semibold">
+              已勾選：{selectedIds.length} 筆
+            </span>
+          )}
         </div>
+
+        {selectedIds.length > 0 && (
+          <button
+            onClick={handleBatchIssueCheck}
+            disabled={updating}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:bg-gray-300"
+          >
+            {updating ? '處理中...' : `💳 將所選 ${selectedIds.length} 筆標記為「已發出支票」`}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -246,13 +320,21 @@ export default function AccountingPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/75 text-gray-600 text-xs uppercase tracking-wider font-semibold">
+                <th className="p-4 w-10 text-center">
+                  <input 
+                    type="checkbox"
+                    onChange={handleSelectAll}
+                    checked={filteredExpenses.length > 0 && selectedIds.length === filteredExpenses.length}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </th>
                 <th className="p-4">收據日期</th>
                 <th className="p-4">員工姓名</th>
                 <th className="p-4">部門</th>
                 <th className="p-4">類別</th>
                 <th className="p-4">商戶名稱與填寫狀態</th>
                 <th className="p-4">金額 (HKD)</th>
-                <th className="p-4">申請備註</th> {/* 👈 新增備註表頭 */}
+                <th className="p-4">申請備註</th>
                 <th className="p-4">收據證明</th>
                 <th className="p-4">審批狀態</th>
                 <th className="p-4">批准人</th>
@@ -262,8 +344,18 @@ export default function AccountingPage() {
               {filteredExpenses.map((item) => {
                 const emp = profilesMap[item.user_id] || {}
                 const approver = profilesMap[item.approver_id] || {}
+                const isChecked = selectedIds.includes(item.id)
+
                 return (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={item.id} className={`hover:bg-gray-50/50 transition-colors ${isChecked ? 'bg-blue-50/40' : ''}`}>
+                    <td className="p-4 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleSelectOne(item.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-4 text-gray-600 font-medium">{item.date}</td>
                     <td className="p-4 font-semibold text-gray-900">{emp.full_name || emp.email || '未知員工'}</td>
                     <td className="p-4 text-gray-600">{emp.department || '未分配'}</td>
@@ -292,7 +384,6 @@ export default function AccountingPage() {
                       </div>
                     </td>
                     <td className="p-4 font-bold text-gray-900">${item.amount.toFixed(2)}</td>
-                    {/* 👈 新增備註欄位內容渲染 */}
                     <td className="p-4 text-xs text-gray-600 max-w-[160px] truncate" title={item.notes || ''}>
                       {item.notes ? item.notes : <span className="text-gray-400">無</span>}
                     </td>
@@ -308,10 +399,13 @@ export default function AccountingPage() {
                     <td className="p-4">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                         item.status === 'approved' ? 'bg-green-50 text-green-700 border border-green-200/50' :
+                        item.status === 'cheque_issued' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/50 font-bold' :
                         item.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200/50' : 
                         'bg-amber-50 text-amber-700 border border-amber-200/50'
                       }`}>
-                        {item.status === 'pending' ? '審核中' : item.status === 'approved' ? '已批准' : '已駁回'}
+                        {item.status === 'pending' ? '審核中' : 
+                         item.status === 'approved' ? '已批准' : 
+                         item.status === 'cheque_issued' ? '💳 已發出支票' : '已駁回'}
                       </span>
                     </td>
                     <td className="p-4 text-xs font-medium text-gray-600">

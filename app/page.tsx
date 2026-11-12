@@ -183,6 +183,10 @@ export default function NewExpensePage() {
         receiptUrl = publicUrlData.publicUrl
       }
 
+      // 💡 判斷當前登入者是否為三個特別用戶之一
+      const specialEmails = ['ay@alphamedtech.hk', 'ct@alphamedtech.hk', 'ew@alphamedtech.hk']
+      const isSpecialUser = specialEmails.includes(currentUserProfile?.email)
+
       const { error } = await supabase.from('expenses').insert({
         user_id: user.id,
         date,
@@ -192,7 +196,8 @@ export default function NewExpensePage() {
         notes,
         receipt_url: receiptUrl,
         status: 'pending',
-        is_manually_edited: hasEdited
+        is_manually_edited: hasEdited,
+        is_special: isSpecialUser // 👈 自動標記是否為特別用戶數據
       })
 
       if (error) {

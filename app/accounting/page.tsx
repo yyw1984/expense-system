@@ -11,12 +11,12 @@ export default function AccountingPage() {
   const [loading, setLoading] = useState(true)
   
   // 篩選條件 States
+  const [viewMode, setViewMode] = useState<'normal' | 'special'>('normal') // 👈 新增：檢視模式 (預設一般)
   const [selectedEmployee, setSelectedEmployee] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedMonth, setSelectedMonth] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   
-  // 💡 新增：多選勾選的記錄 ID 集合
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [updating, setUpdating] = useState(false)
   
@@ -30,7 +30,6 @@ export default function AccountingPage() {
         return
       }
 
-      // 1. 檢查當前用戶是否為會計主管
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -43,11 +42,9 @@ export default function AccountingPage() {
         return
       }
 
-      // 2. 取得所有員工 Profiles
       const { data: profilesData } = await supabase.from('profiles').select('*')
       setProfiles(profilesData || [])
 
-      // 3. 取得所有報銷紀錄
       const { data: expensesData, error } = await supabase
         .from('expenses')
         .select('*')
@@ -56,23 +53,18 @@ export default function AccountingPage() {
       if (error) {
         console.error('讀取失敗:', error.message)
       } else if (expensesData) {
-        // 💡 雙重重複檢測邏輯
         const expensesWithDuplicateCheck = expensesData.map(item => {
           const isDuplicate = expensesData.some(other => {
             if (other.id === item.id) return false
-
             const sameDate = other.date === item.date
             const sameMerchant = 
               other.merchant && item.merchant &&
               other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase()
             const matchMerchantRule = sameDate && sameMerchant
-
             const sameAmount = other.amount === item.amount
             const matchAmountRule = sameDate && sameAmount
-
             return matchMerchantRule || matchAmountRule
           })
-
           return { ...item, isDuplicate }
         })
 
@@ -84,17 +76,22 @@ export default function AccountingPage() {
     loadAccountingData()
   }, [router])
 
-  // 建立對應 Map
   const profilesMap: { [key: string]: any } = {}
   profiles.forEach(p => { profilesMap[p.id] = p })
 
+  // 💡 根據切換的 viewMode 過濾資料（一般 vs 特別用戶）
+  const modeFilteredExpenses = expenses.filter(item => {
+    const isSpecialItem = !!item.is_special
+    return viewMode === 'special' ? isSpecialItem : !isSpecialItem
+  })
+
   // 取得所有出現過的月份清單
   const availableMonths = Array.from(
-    new Set(expenses.map(item => item.date ? item.date.slice(0, 7) : ''))
+    new Set(modeFilteredExpenses.map(item => item.date ? item.date.slice(0, 7) : ''))
   ).filter(Boolean).sort().reverse()
 
-  // 篩選邏輯
-  const filteredExpenses = expenses.filter(item => {
+  // 綜合篩選邏輯
+  const filteredExpenses = modeFilteredExpenses.filter(item => {
     const matchEmployee = selectedEmployee === 'all' || item.user_id === selectedEmployee
     const matchCategory = selectedCategory === 'all' || item.category === selectedCategory
     const matchMonth = selectedMonth === 'all' || (item.date && item.date.startsWith(selectedMonth))
@@ -102,7 +99,6 @@ export default function AccountingPage() {
     return matchEmployee && matchCategory && matchMonth && matchStatus
   })
 
-  // 💡 處理單一勾選 / 取消勾選
   const handleSelectOne = (id: string) => {
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter(item => item !== id))
@@ -111,52 +107,40 @@ export default function AccountingPage() {
     }
   }
 
-  // 💡 處理全選 / 取消全選（針對當前篩選結果）
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const allFilteredIds = filteredExpenses.map(item => item.id)
-      setSelectedIds(allFilteredIds)
+      setSelectedIds(filteredExpenses.map(item => item.id))
     } else {
       setSelectedIds([])
     }
   }
 
-  // 💡 批核所選項目為「已發出支票」
   const handleBatchIssueCheck = async () => {
     if (selectedIds.length === 0) return
-
-    const confirmMsg = `確定要將選取的 ${selectedIds.length} 筆報銷單狀態更新為「已發出支票」嗎？`
-    if (!confirm(confirmMsg)) return
+    if (!confirm(`確定要將選取的 ${selectedIds.length} 筆報銷單狀態更新為「已發出支票」嗎？`)) return
 
     setUpdating(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-
       const { error } = await supabase
         .from('expenses')
-        .update({ 
-          status: 'cheque_issued', // 儲存至資料庫的狀態值
-          approver_id: user?.id 
-        })
+        .update({ status: 'cheque_issued', approver_id: user?.id })
         .in('id', selectedIds)
 
       if (error) {
         alert('更新失敗: ' + error.message)
       } else {
         alert('成功更新所選單據狀態為「已發出支票」！')
-        setSelectedIds([]) // 清空勾選
-        // 重新載入頁面資料
+        setSelectedIds([])
         window.location.reload()
       }
     } catch (err: any) {
-      console.error(err)
       alert('發生未預期錯誤')
     } finally {
       setUpdating(false)
     }
   }
 
-  // 匯出 CSV 函式
   const exportToCSV = () => {
     if (filteredExpenses.length === 0) {
       alert('目前沒有符合條件的資料可供匯出')
@@ -197,7 +181,7 @@ export default function AccountingPage() {
     
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `expense_report_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `expense_report_${viewMode === 'special' ? 'special' : 'normal'}_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -223,8 +207,25 @@ export default function AccountingPage() {
         </div>
       </div>
 
-      {/* 篩選工具列 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200/60">
+      {/* 篩選工具列 (加入檢視模式) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200/60">
+        {/* 💡 新增：檢視模式切換 */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">數據檢視模式</label>
+          <select 
+            value={viewMode} 
+            onChange={(e) => {
+              setViewMode(e.target.value as any)
+              setSelectedIds([]) // 切換模式時清空勾選
+              setSelectedEmployee('all')
+            }}
+            className="w-full rounded-xl border border-gray-300 p-2 text-sm font-bold text-blue-700 bg-white focus:ring-2 focus:ring-blue-500/20"
+          >
+            <option value="normal">🏢 一般員工報銷</option>
+            <option value="special">🔒 特別用戶專用數據</option>
+          </select>
+        </div>
+
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">依員工篩選</label>
           <select 
@@ -233,11 +234,14 @@ export default function AccountingPage() {
             className="w-full rounded-xl border border-gray-300 p-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="all">全體員工 (全部)</option>
-            {profiles.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.full_name || p.email} ({p.department || '未分部門'})
-              </option>
-            ))}
+            {profiles
+              .filter(p => viewMode === 'special' ? ['ay@alphamedtech.hk', 'ct@alphamedtech.hk', 'ew@alphamedtech.hk'].includes(p.email) : true)
+              .map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name || p.email} ({p.department || '未分部門'})
+                </option>
+              ))
+            }
           </select>
         </div>
 
@@ -290,7 +294,6 @@ export default function AccountingPage() {
         </div>
       </div>
 
-      {/* 💡 批核操作控制列 (當有勾選時顯示) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 px-1 gap-3">
         <div className="text-xs text-gray-500">
           符合條件筆數：<span className="font-bold text-gray-800">{filteredExpenses.length}</span> 筆 

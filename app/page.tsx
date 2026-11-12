@@ -8,8 +8,8 @@ export default function NewExpensePage() {
   const [merchant, setMerchant] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('') 
-  const [category, setCategory] = useState('交通')
-  const [notes, setNotes] = useState('') // ✅ 已補上 State
+  const [category, setCategory] = useState('飲食') // ✅ 預設值改為列表第一項「飲食」
+  const [notes, setNotes] = useState('')
   const [file, setFile] = useState<File | null>(null)
   
   // 登入者資訊 State
@@ -181,7 +181,7 @@ export default function NewExpensePage() {
         category,
         merchant,
         amount: parseFloat(amount) || 0,
-        notes, // 寫入申請備註
+        notes,
         receipt_url: receiptUrl,
         status: 'pending',
         is_manually_edited: hasEdited
@@ -274,9 +274,13 @@ export default function NewExpensePage() {
               onChange={e => setCategory(e.target.value)}
               className="w-full rounded-xl border border-gray-300 p-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
             >
-              <option value="交通">交通</option>
               <option value="飲食">飲食</option>
+              <option value="交通">交通</option>
               <option value="工具">工具</option>
+              <option value="文具">文具</option>
+              <option value="Inventory">Inventory</option>
+              <option value="Car Expense">Car Expense</option>
+              <option value="Business Trip">Business Trip</option>
               <option value="其他">其他</option>
             </select>
           </div>
@@ -316,7 +320,6 @@ export default function NewExpensePage() {
           </div>
         </div>
 
-        {/* ✅ 已優化樣式與結構的申請備註欄位 */}
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
             申請備註 / 原因

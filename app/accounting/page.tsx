@@ -249,9 +249,13 @@ export default function AccountingPage() {
             className="w-full rounded-xl border border-gray-300 p-2 text-sm text-gray-800 bg-white focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="all">所有類別 (全部)</option>
-            <option value="交通">交通</option>
             <option value="飲食">飲食</option>
+            <option value="交通">交通</option>
             <option value="工具">工具</option>
+            <option value="文具">文具</option>
+            <option value="Inventory">Inventory</option>
+            <option value="Car Expense">Car Expense</option>
+            <option value="Business Trip">Business Trip</option>
             <option value="其他">其他</option>
           </select>
         </div>

@@ -14,6 +14,7 @@ export default function AdminApprovalPage() {
   const [loading, setLoading] = useState(true)
 
   // 篩選 States
+  const [viewMode, setViewMode] = useState<'normal' | 'special'>('normal') // 👈 新增：檢視模式 (預設一般)
   const [selectedEmployee, setSelectedEmployee] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('all')
 
@@ -63,22 +64,17 @@ export default function AdminApprovalPage() {
 
     const { data, error } = await query
     if (!error && data) {
-      // 💡 雙重重複檢測邏輯：
-      // 條件 A：日期相同 且 商戶名稱相同
-      // 條件 B：日期相同 且 金額相同
+      // 💡 雙重重複檢測邏輯
       const expensesWithDuplicateCheck = data.map(item => {
         const isDuplicate = data.some(other => {
           if (other.id === item.id) return false
 
           const sameDate = other.date === item.date
-          
-          // 邏輯 1：日期相同 + 商戶名稱相同 (忽略大小寫與前後空白)
           const sameMerchant = 
             other.merchant && item.merchant &&
             other.merchant.trim().toLowerCase() === item.merchant.trim().toLowerCase()
           const matchMerchantRule = sameDate && sameMerchant
 
-          // 邏輯 2：日期相同 + 金額相同
           const sameAmount = other.amount === item.amount
           const matchAmountRule = sameDate && sameAmount
 
@@ -115,8 +111,14 @@ export default function AdminApprovalPage() {
     }
   }
 
+  // 💡 根據切換的 viewMode 過濾資料（一般 vs 特別用戶）
+  const modeFilteredExpenses = expenses.filter(item => {
+    const isSpecialItem = !!item.is_special
+    return viewMode === 'special' ? isSpecialItem : !isSpecialItem
+  })
+
   // 篩選邏輯
-  const filteredExpenses = expenses.filter(item => {
+  const filteredExpenses = modeFilteredExpenses.filter(item => {
     const matchEmp = selectedEmployee === 'all' || item.user_id === selectedEmployee
     const matchCat = selectedCategory === 'all' || item.category === selectedCategory
     return matchEmp && matchCat
@@ -149,8 +151,24 @@ export default function AdminApprovalPage() {
         </div>
       </div>
 
-      {/* 篩選工具列 */}
+      {/* 篩選工具列 (加入檢視模式) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200/60">
+        {/* 💡 新增：檢視模式切換 */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">數據檢視模式</label>
+          <select 
+            value={viewMode} 
+            onChange={(e) => {
+              setViewMode(e.target.value as any)
+              setSelectedEmployee('all')
+            }}
+            className="w-full rounded-xl border border-gray-300 p-2 text-sm font-bold text-blue-700 bg-white"
+          >
+            <option value="normal">🏢 一般員工報銷</option>
+            <option value="special">🔒 特別用戶專用數據</option>
+          </select>
+        </div>
+
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">依員工篩選</label>
           <select 
@@ -159,9 +177,12 @@ export default function AdminApprovalPage() {
             className="w-full rounded-xl border border-gray-300 p-2 text-sm text-gray-800 bg-white"
           >
             <option value="all">可審批成員 (全部)</option>
-            {dropdownProfiles.map(p => (
-              <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-            ))}
+            {dropdownProfiles
+              .filter(p => viewMode === 'special' ? ['ay@alphamedtech.hk', 'ct@alphamedtech.hk', 'ew@alphamedtech.hk'].includes(p.email) : true)
+              .map(p => (
+                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+              ))
+            }
           </select>
         </div>
         <div>
@@ -182,7 +203,10 @@ export default function AdminApprovalPage() {
             <option value="其他">其他</option>
           </select>
         </div>
-        <div className="flex items-end text-xs text-gray-500 pb-2">
+      </div>
+
+      <div className="flex justify-between items-center mb-4 px-1 text-xs text-gray-500">
+        <div>
           待審批筆數：<span className="font-bold text-gray-800 ml-1">{filteredExpenses.length}</span> 筆
         </div>
       </div>
@@ -230,7 +254,6 @@ export default function AdminApprovalPage() {
                             🤖 AI 自動辨識
                           </span>
                         )}
-                        {/* 💡 雙重條件重複單據警示標籤 */}
                         {item.isDuplicate && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
                             ⚠️ 疑似重複申報
@@ -252,9 +275,12 @@ export default function AdminApprovalPage() {
                     <td className="p-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         item.status === 'approved' ? 'bg-green-50 text-green-700' :
+                        item.status === 'cheque_issued' ? 'bg-indigo-50 text-indigo-700 font-bold' :
                         item.status === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
                       }`}>
-                        {item.status === 'pending' ? '審核中' : item.status === 'approved' ? '已批准' : '已駁回'}
+                        {item.status === 'pending' ? '審核中' : 
+                         item.status === 'approved' ? '已批准' : 
+                         item.status === 'cheque_issued' ? '💳 已發出支票' : '已駁回'}
                       </span>
                     </td>
                     <td className="p-4">
